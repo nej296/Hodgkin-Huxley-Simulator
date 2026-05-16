@@ -98,6 +98,7 @@ remain finite at the singular points.
 |-- tests/               # automated tests
 |-- data/                # input/reference data
 |-- output/              # generated CSV and plot files, ignored by git
+|-- app.py               # interactive desktop simulator
 |-- main.py              # configurable simulation entry point
 `-- requirements.txt
 ```
@@ -117,6 +118,18 @@ source .venv/bin/activate
 ```
 
 ## Usage
+
+Launch the interactive membrane dynamics simulator:
+
+```bash
+python app.py
+```
+
+The desktop app lets you adjust sodium, potassium, and leak conductances;
+reversal potentials; injected-current timing and amplitude; time step; and
+integration method. Press **Run Simulation** to update the membrane voltage,
+injected current, and gating-variable plots. Use **Export CSV** or **Save Plot**
+to save the active simulation.
 
 Run the default current-step simulation:
 
@@ -167,6 +180,7 @@ The current tests verify that:
 - Gating variables `m`, `h`, and `n`
 - Adjustable sodium and potassium conductances
 - Adjustable step-current injection
+- Interactive desktop simulator for membrane dynamics
 - RK4 and Euler integration
 - Voltage and injected-current plotting
 - CSV export of voltage, gates, and current
