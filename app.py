@@ -287,6 +287,11 @@ class HodgkinHuxleySimulatorApp:
 
         self.voltage_axis.clear()
         self.current_axis.clear()
+        time_start = float(self.result.time_ms[0])
+        time_end = float(self.result.time_ms[-1])
+        time_span = max(time_end - time_start, 1.0)
+        label_x = time_end + 0.015 * time_span
+        right_margin = 0.09 * time_span
 
         self.voltage_axis.plot(
             self.result.time_ms,
@@ -295,7 +300,6 @@ class HodgkinHuxleySimulatorApp:
             linewidth=1.6,
         )
         if self.current_parameters is not None:
-            label_x = float(self.result.time_ms[-1])
             self.voltage_axis.axhline(
                 self.current_parameters.e_na,
                 color="black",
@@ -311,19 +315,19 @@ class HodgkinHuxleySimulatorApp:
             self.voltage_axis.annotate(
                 "E_Na",
                 xy=(label_x, self.current_parameters.e_na),
-                xytext=(-6, 4),
+                xytext=(0, -4),
                 textcoords="offset points",
-                ha="right",
-                va="bottom",
+                ha="left",
+                va="top",
                 fontsize=9,
                 color="black",
             )
             self.voltage_axis.annotate(
                 "E_K",
                 xy=(label_x, self.current_parameters.e_k),
-                xytext=(-6, 4),
+                xytext=(0, 4),
                 textcoords="offset points",
-                ha="right",
+                ha="left",
                 va="bottom",
                 fontsize=9,
                 color="black",
@@ -341,6 +345,7 @@ class HodgkinHuxleySimulatorApp:
         self.current_axis.set_ylabel("I (uA/cm^2)")
         self.current_axis.set_xlabel("Time (ms)")
         self.current_axis.grid(True, alpha=0.25)
+        self.current_axis.set_xlim(time_start, time_end + right_margin)
 
         self.figure.tight_layout()
         self.canvas.draw_idle()
