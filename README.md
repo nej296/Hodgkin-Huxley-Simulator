@@ -1,34 +1,97 @@
-# Hodgkin-Huxley Simulator
+# Hodgkin-Huxley Membrane Dynamics Simulator
 
-A Python implementation of the classic single-compartment Hodgkin-Huxley neuron
-model for studying how sodium and potassium conductances shape action-potential
-generation, firing frequency, threshold behavior, and membrane voltage dynamics.
+An interactive Python simulator for exploring the classic Hodgkin-Huxley
+single-compartment neuron model. The project is designed for educational use,
+research portfolio presentation, and future expansion into more advanced
+computational neuroscience workflows.
 
-This repository is structured as a computational neuroscience research project:
-the core model is separated from simulation protocols, plotting, analysis, data
-export, and reproducible experiment scripts.
+The simulator lets students and researchers change ionic conductances, reversal
+potentials, current injection, and numerical integration settings, then observe
+how those parameters shape action-potential generation and membrane voltage
+dynamics.
+
+## Educational Purpose
+
+This project is intended to help users understand how conductance-based neuron
+models produce spikes from biophysical mechanisms. It is suitable for:
+
+- neuroscience and neuroengineering coursework
+- computational biology demonstrations
+- electrophysiology modeling labs
+- portfolio projects focused on scientific Python
+- early-stage research prototypes before moving to larger simulators
+
+Key learning goals:
+
+- connect membrane voltage dynamics to ionic currents
+- visualize the roles of sodium and potassium reversal potentials
+- study how `g_Na` and `g_K` affect spike shape, threshold, and firing rate
+- compare numerical methods such as RK4 and Euler integration
+- export simulation traces for reproducible analysis
+
+## Interactive Simulator
+
+Launch the desktop simulator:
+
+```bash
+python app.py
+```
+
+The application opens a control panel and two plots:
+
+- membrane voltage over time
+- injected current over time
+
+The voltage plot includes black dashed reference lines for:
+
+- `E_Na`, the sodium reversal potential
+- `E_K`, the potassium reversal potential
+
+These labels appear at the right side of the voltage plot. The leak reversal
+potential, `E_L`, is adjustable in the controls but is not drawn on the main
+plot, keeping the display focused on the main action-potential driving forces.
+
+The app includes controls for:
+
+- simulation duration and time step
+- initial membrane voltage
+- RK4 or Euler integration
+- current-step amplitude, start time, end time, and baseline
+- sodium, potassium, and leak conductances
+- sodium, potassium, and leak reversal potentials
+- membrane capacitance
+
+The metrics panel reports:
+
+- spike count
+- firing rate
+- peak voltage
+- trough voltage
+- first spike time
+
+Use **Run Simulation** after changing parameters. Use **Export CSV** to save the
+active trace and **Save Plot** to save the current figure.
 
 ## Biological Background
 
 The Hodgkin-Huxley model describes action-potential generation as the interaction
-between membrane capacitance and voltage-gated ionic conductances. In this
-formulation, the membrane voltage changes when injected current and ionic
-currents are not balanced. Sodium channels drive rapid depolarization, potassium
-channels drive repolarization and after-hyperpolarization, and leak current
-pulls the membrane toward a passive reversal potential.
+between membrane capacitance and voltage-gated ionic conductances. Sodium
+channels drive rapid depolarization, potassium channels drive repolarization and
+after-hyperpolarization, and leak conductance provides a passive background
+current.
 
-The main conductance parameters are:
+Changing sodium and potassium conductance values changes:
 
-- `g_na`: maximum sodium conductance density
-- `g_k`: maximum potassium conductance density
-- `g_l`: leak conductance density
-
-Changing `g_na` and `g_k` changes spike amplitude, spike width, excitability,
-firing frequency, and recovery dynamics.
+- spike amplitude
+- spike width
+- threshold behavior
+- firing frequency
+- after-hyperpolarization
+- recovery between spikes
 
 ## Model Equations
 
-The membrane voltage equation is:
+The membrane equation is:
 
 ```text
 C_m dV/dt = I_injected - I_Na - I_K - I_L
@@ -59,80 +122,82 @@ Variables:
 - `C_m`: membrane capacitance density in uF/cm^2
 - `I_injected`: applied current density in uA/cm^2
 
-The default parameterization follows the original squid giant axon model:
+Default parameters follow the classic squid giant axon model:
 
-| Parameter | Default | Units |
-| --- | ---: | --- |
-| `C_m` | 1.0 | uF/cm^2 |
-| `g_na` | 120.0 | mS/cm^2 |
-| `g_k` | 36.0 | mS/cm^2 |
-| `g_l` | 0.3 | mS/cm^2 |
-| `E_Na` | 50.0 | mV |
-| `E_K` | -77.0 | mV |
-| `E_L` | -54.387 | mV |
+| Parameter | Default | Units | Interpretation |
+| --- | ---: | --- | --- |
+| `C_m` | 1.0 | uF/cm^2 | membrane capacitance density |
+| `g_Na` | 120.0 | mS/cm^2 | maximum sodium conductance |
+| `g_K` | 36.0 | mS/cm^2 | maximum potassium conductance |
+| `g_L` | 0.3 | mS/cm^2 | leak conductance |
+| `E_Na` | 50.0 | mV | sodium reversal potential |
+| `E_K` | -77.0 | mV | potassium reversal potential |
+| `E_L` | -54.387 | mV | leak reversal potential |
+
+## Reversal Potentials
+
+Reversal potentials define the voltage at which a particular ionic current would
+have no net driving force.
+
+- `E_Na` is usually positive, so sodium current tends to depolarize the membrane
+  during spike initiation.
+- `E_K` is usually negative, so potassium current tends to repolarize and
+  hyperpolarize the membrane after a spike.
+- `E_L` represents the passive leak reversal potential. It helps set the
+  background tendency of the membrane but is not identical to the resting
+  membrane voltage. Resting voltage emerges from the balance of sodium,
+  potassium, leak, and any injected current.
 
 ## Numerical Methods
 
-The simulator uses fixed-step explicit integration. The default method is
-fourth-order Runge-Kutta (`rk4`), with forward Euler (`euler`) also available
-for teaching and comparison. Current protocols are evaluated on the simulation
-time grid and held constant over each integration step.
+The simulator uses fixed-step explicit integration:
 
-The gating-rate equations contain removable singularities at specific voltages.
-The implementation evaluates those terms with a stable helper so simulations
-remain finite at the singular points.
+- `rk4`: fourth-order Runge-Kutta, the default method
+- `euler`: forward Euler, useful for teaching numerical-method differences
 
-## Repository Structure
-
-```text
-.
-|-- src/
-|   |-- models/          # Hodgkin-Huxley model and parameters
-|   |-- simulation/      # configuration, protocols, integration loop
-|   |-- visualization/   # matplotlib plotting utilities
-|   |-- analysis/        # spike metrics and validation comparisons
-|   `-- utils/           # CSV export and support utilities
-|-- experiments/         # reproducible experiment scripts
-|-- notebooks/           # exploratory analysis notebooks
-|-- docs/                # scientific and validation notes
-|-- tests/               # automated tests
-|-- data/                # input/reference data
-|-- output/              # generated CSV and plot files, ignored by git
-|-- app.py               # interactive desktop simulator
-|-- main.py              # configurable simulation entry point
-`-- requirements.txt
-```
+Current protocols are evaluated on the simulation time grid and held constant
+over each integration step. The gating-rate equations include numerically stable
+handling of removable singularities so rate functions remain finite at the
+classic Hodgkin-Huxley singular voltages.
 
 ## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/nej296/Hodgkin-Huxley-Simulator.git
+cd Hodgkin-Huxley-Simulator
+```
+
+Create and activate a virtual environment on Windows:
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
 ```
 
-On macOS or Linux, activate the environment with:
+On macOS or Linux:
 
 ```bash
+python -m venv .venv
 source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ## Usage
 
-Launch the interactive membrane dynamics simulator:
+Start the interactive simulator:
 
 ```bash
 python app.py
 ```
 
-The desktop app lets you adjust sodium, potassium, and leak conductances;
-reversal potentials; injected-current timing and amplitude; time step; and
-integration method. Press **Run Simulation** to update the membrane voltage,
-and injected-current plots. Use **Export CSV** or **Save Plot** to save the
-active simulation. The voltage plot includes dashed reference lines for the
-sodium and potassium reversal potentials (`E_Na` and `E_K`).
-
-Run the default current-step simulation:
+Run the default command-line simulation:
 
 ```bash
 python main.py
@@ -143,7 +208,13 @@ This writes:
 - `output/simulation.csv`
 - `output/simulation.png`
 
-Run the reproducible basic experiment:
+Customize a command-line simulation:
+
+```bash
+python main.py --current 12 --start-ms 5 --end-ms 40 --g-na 140 --g-k 30
+```
+
+Run a reproducible basic experiment:
 
 ```bash
 python experiments/run_basic_simulation.py
@@ -155,53 +226,89 @@ Run sodium and potassium conductance sweeps:
 python experiments/conductance_sweep.py
 ```
 
-Customize a simulation from the command line:
+## Data Export
 
-```bash
-python main.py --current 12 --start-ms 5 --end-ms 40 --g-na 140 --g-k 30
+CSV exports include:
+
+- time in ms
+- membrane voltage in mV
+- gating variables `m`, `h`, and `n`
+- injected current in uA/cm^2
+
+The interactive app does not show the gating variables on the main page, but
+they remain available in exported data for analysis, validation, and plotting.
+
+## Repository Structure
+
+```text
+.
+|-- app.py               # interactive desktop simulator
+|-- main.py              # command-line simulation entry point
+|-- src/
+|   |-- models/          # Hodgkin-Huxley model and parameters
+|   |-- simulation/      # configuration, protocols, integration loop
+|   |-- visualization/   # matplotlib plotting utilities
+|   |-- analysis/        # spike metrics and validation comparisons
+|   `-- utils/           # CSV export helpers
+|-- experiments/         # reproducible simulation scripts
+|-- docs/                # validation and scientific notes
+|-- tests/               # automated tests
+|-- data/                # input/reference data
+|-- output/              # generated files, ignored by git
+|-- notebooks/           # exploratory analysis notebooks
+|-- requirements.txt
+`-- pyproject.toml
 ```
 
 ## Testing
 
+Run the test suite:
+
 ```bash
-pytest
+python -m pytest
 ```
 
-The current tests verify that:
+The tests currently verify:
 
-- HH rate functions remain finite at singular voltages
-- a standard depolarizing current step evokes an action potential
-- current-step protocols return the expected injected current values
+- stable HH rate functions at singular voltages
+- action-potential generation under a standard depolarizing current step
+- current-step protocol behavior
 
-## Current Features
+## Current Capabilities
 
-- Standard Hodgkin-Huxley equations
-- Single-compartment membrane voltage simulation
-- Sodium, potassium, and leak currents
-- Gating variables `m`, `h`, and `n`
-- Adjustable sodium and potassium conductances
-- Adjustable step-current injection
-- Interactive desktop simulator for membrane dynamics
+- interactive educational desktop simulator
+- standard Hodgkin-Huxley single-compartment equations
+- sodium, potassium, and leak currents
+- adjustable conductances and reversal potentials
+- adjustable current-step protocol
 - RK4 and Euler integration
-- Voltage and injected-current plotting
-- CSV export of voltage, gates, and current
-- Spike-count and firing-rate analysis
-- Conductance sweep experiments
-- Trace comparison utilities for future validation against NEURON
+- voltage and injected-current visualization
+- Na/K reversal-potential overlays on the voltage graph
+- CSV export for reproducible analysis
+- spike-count and firing-rate summary metrics
+- sodium and potassium conductance sweep experiments
+- trace-comparison utilities for future validation against NEURON
+
+## Limitations
+
+This is currently a deterministic, single-compartment Hodgkin-Huxley simulator.
+It does not yet include spatial morphology, multicompartment cable equations,
+synaptic conductances, stochastic ion channels, or network simulations.
 
 ## Roadmap
 
-Planned extensions are organized around future research use:
+Planned extensions:
 
 - NEURON comparison experiments using matched protocols and reference traces
 - multicompartment cable models
-- morphology loading from SWC files
-- synaptic conductances and current-based synapses
+- SWC morphology loading
+- morphology-dependent simulations
+- synaptic conductances
 - stochastic ion-channel variants
-- parameter sweeps with structured result directories
-- network simulations
+- structured parameter sweeps
+- notebook-based analysis reports
 - GPU-accelerated integration backends
-- notebook-based analysis reports for conductance-dependent firing behavior
+- network simulation support
 
 ## References
 
