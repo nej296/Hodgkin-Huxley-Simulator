@@ -128,8 +128,8 @@ python app.py
 The desktop app lets you adjust sodium, potassium, and leak conductances;
 reversal potentials; injected-current timing and amplitude; time step; and
 integration method. Press **Run Simulation** to update the membrane voltage,
-injected current, and gating-variable plots. Use **Export CSV** or **Save Plot**
-to save the active simulation.
+and injected-current plots. Use **Export CSV** or **Save Plot** to save the
+active simulation.
 
 Run the default current-step simulation:
 

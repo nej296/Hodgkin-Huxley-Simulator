@@ -195,9 +195,8 @@ class HodgkinHuxleySimulatorApp:
         """Create the embedded Matplotlib figure used for all simulations."""
 
         self.figure = Figure(figsize=(9.5, 6.8), dpi=100)
-        self.voltage_axis = self.figure.add_subplot(311)
-        self.current_axis = self.figure.add_subplot(312, sharex=self.voltage_axis)
-        self.gate_axis = self.figure.add_subplot(313, sharex=self.voltage_axis)
+        self.voltage_axis = self.figure.add_subplot(211)
+        self.current_axis = self.figure.add_subplot(212, sharex=self.voltage_axis)
 
         self.canvas = FigureCanvasTkAgg(self.figure, master=parent)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
@@ -279,14 +278,13 @@ class HodgkinHuxleySimulatorApp:
         self.status_var.set("Simulation complete")
 
     def _draw_result(self) -> None:
-        """Update voltage, injected current, and gate plots from the latest result."""
+        """Update voltage and injected-current plots from the latest result."""
 
         if self.result is None:
             return
 
         self.voltage_axis.clear()
         self.current_axis.clear()
-        self.gate_axis.clear()
 
         self.voltage_axis.plot(
             self.result.time_ms,
@@ -305,16 +303,8 @@ class HodgkinHuxleySimulatorApp:
             linewidth=1.4,
         )
         self.current_axis.set_ylabel("I (uA/cm^2)")
+        self.current_axis.set_xlabel("Time (ms)")
         self.current_axis.grid(True, alpha=0.25)
-
-        self.gate_axis.plot(self.result.time_ms, self.result.m, label="m", linewidth=1.2)
-        self.gate_axis.plot(self.result.time_ms, self.result.h, label="h", linewidth=1.2)
-        self.gate_axis.plot(self.result.time_ms, self.result.n, label="n", linewidth=1.2)
-        self.gate_axis.set_xlabel("Time (ms)")
-        self.gate_axis.set_ylabel("Gate probability")
-        self.gate_axis.set_ylim(-0.05, 1.05)
-        self.gate_axis.grid(True, alpha=0.25)
-        self.gate_axis.legend(loc="upper right", ncols=3, fontsize="small")
 
         self.figure.tight_layout()
         self.canvas.draw_idle()
@@ -366,7 +356,7 @@ class HodgkinHuxleySimulatorApp:
         self.status_var.set(f"CSV exported: {path}")
 
     def save_plot(self) -> None:
-        """Save the current voltage/current/gate figure to an image file."""
+        """Save the current voltage/current figure to an image file."""
 
         if self.result is None:
             messagebox.showwarning("No simulation", "Run a simulation before saving a plot.")
