@@ -293,27 +293,44 @@ class HodgkinHuxleySimulatorApp:
             self.result.voltage_mV,
             color="#1f5f99",
             linewidth=1.6,
-            label="V_m",
         )
         if self.current_parameters is not None:
+            label_x = float(self.result.time_ms[-1])
             self.voltage_axis.axhline(
                 self.current_parameters.e_na,
-                color="#b8322a",
+                color="black",
                 linestyle="--",
                 linewidth=1.2,
-                label="E_Na",
             )
             self.voltage_axis.axhline(
                 self.current_parameters.e_k,
-                color="#2f7d4a",
+                color="black",
                 linestyle="--",
                 linewidth=1.2,
-                label="E_K",
+            )
+            self.voltage_axis.annotate(
+                "E_Na",
+                xy=(label_x, self.current_parameters.e_na),
+                xytext=(-6, 4),
+                textcoords="offset points",
+                ha="right",
+                va="bottom",
+                fontsize=9,
+                color="black",
+            )
+            self.voltage_axis.annotate(
+                "E_K",
+                xy=(label_x, self.current_parameters.e_k),
+                xytext=(-6, 4),
+                textcoords="offset points",
+                ha="right",
+                va="bottom",
+                fontsize=9,
+                color="black",
             )
         self.voltage_axis.set_ylabel("V (mV)")
         self.voltage_axis.set_title("Membrane voltage response with Na/K reversal potentials")
         self.voltage_axis.grid(True, alpha=0.25)
-        self.voltage_axis.legend(loc="upper right", fontsize="small")
 
         self.current_axis.plot(
             self.result.time_ms,
