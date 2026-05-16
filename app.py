@@ -333,7 +333,6 @@ class HodgkinHuxleySimulatorApp:
                 color="black",
             )
         self.voltage_axis.set_ylabel("V (mV)")
-        self.voltage_axis.set_title("Membrane voltage response with Na/K reversal potentials")
         self.voltage_axis.grid(True, alpha=0.25)
 
         self.current_axis.plot(
