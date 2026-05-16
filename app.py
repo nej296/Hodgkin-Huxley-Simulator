@@ -27,6 +27,16 @@ from src.utils.export import export_simulation_csv
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
+class SimulatorNavigationToolbar(NavigationToolbar2Tk):
+    """Matplotlib toolbar with only the controls useful for this simulator."""
+
+    toolitems = tuple(
+        item
+        for item in NavigationToolbar2Tk.toolitems
+        if item[0] not in {"Zoom", "Subplots"}
+    )
+
+
 @dataclass(frozen=True)
 class ControlDefaults:
     """Default GUI values that reproduce the classic HH current-step response."""
@@ -204,7 +214,7 @@ class HodgkinHuxleySimulatorApp:
 
         toolbar_frame = ttk.Frame(parent)
         toolbar_frame.grid(row=1, column=0, sticky="ew")
-        NavigationToolbar2Tk(self.canvas, toolbar_frame, pack_toolbar=False).grid(
+        SimulatorNavigationToolbar(self.canvas, toolbar_frame, pack_toolbar=False).grid(
             row=0, column=0, sticky="w"
         )
 
