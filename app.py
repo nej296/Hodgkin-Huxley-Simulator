@@ -63,6 +63,7 @@ class HodgkinHuxleySimulatorApp:
         self.variables: dict[str, tk.StringVar] = {}
         self.result: SimulationResult | None = None
         self.metrics: SpikeMetrics | None = None
+        self.current_parameters: HodgkinHuxleyParameters | None = None
 
         self._configure_style()
         self._build_layout()
@@ -268,6 +269,7 @@ class HodgkinHuxleySimulatorApp:
                 initial_state=initial_state,
             )
             self.metrics = summarize_voltage_trace(self.result)
+            self.current_parameters = neuron.parameters
         except Exception as exc:  # noqa: BLE001 - GUI should report validation errors.
             messagebox.showerror("Simulation error", str(exc))
             self.status_var.set("Simulation failed")
@@ -291,10 +293,27 @@ class HodgkinHuxleySimulatorApp:
             self.result.voltage_mV,
             color="#1f5f99",
             linewidth=1.6,
+            label="V_m",
         )
+        if self.current_parameters is not None:
+            self.voltage_axis.axhline(
+                self.current_parameters.e_na,
+                color="#b8322a",
+                linestyle="--",
+                linewidth=1.2,
+                label="E_Na",
+            )
+            self.voltage_axis.axhline(
+                self.current_parameters.e_k,
+                color="#2f7d4a",
+                linestyle="--",
+                linewidth=1.2,
+                label="E_K",
+            )
         self.voltage_axis.set_ylabel("V (mV)")
-        self.voltage_axis.set_title("Membrane voltage response")
+        self.voltage_axis.set_title("Membrane voltage response with Na/K reversal potentials")
         self.voltage_axis.grid(True, alpha=0.25)
+        self.voltage_axis.legend(loc="upper right", fontsize="small")
 
         self.current_axis.plot(
             self.result.time_ms,
