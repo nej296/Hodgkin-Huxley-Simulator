@@ -24,7 +24,7 @@ ASSIGNED {
 }
 
 BREAKPOINT {
-    if (t >= delay && t < delay + dur) {
+    if (t >= delay && t <= delay + dur) {
         iinj = amp
     } else {
         iinj = 0

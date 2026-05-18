@@ -75,3 +75,15 @@ current-by-current using:
 - peak and trough voltage differences
 - first-spike latency difference
 - F-I curve error
+
+Run the comparison on existing generated CSV files:
+
+```powershell
+python neuron_validation\compare_python_neuron_outputs.py
+```
+
+The comparison output is written to:
+
+```text
+output/validation/comparison/
+```
