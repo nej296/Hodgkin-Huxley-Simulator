@@ -20,3 +20,11 @@ data/generated/*
 
 .ipynb_checkpoints/
 *.log
+
+# NEURON/NMODL build artifacts
+nrnmech.dll
+*.nrnmech.dll
+mod_func.cpp
+mod_func.o
+*_clamp.cpp
+*.o
