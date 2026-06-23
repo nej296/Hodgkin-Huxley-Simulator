@@ -1,11 +1,14 @@
-# Building and Validating a Single-Compartment Hodgkin-Huxley Simulator in Python
+# Hodgkin-Huxley Neuron Simulator
 
-An interactive Python desktop simulator for exploring Hodgkin-Huxley membrane
-dynamics and validating the model against NEURON.
+An interactive Python desktop app for exploring single-compartment
+Hodgkin-Huxley membrane dynamics, current injection, spike generation, and
+basic action-potential metrics.
 
 ## Quick Start: Open the Desktop App
 
 These steps run the same Python/Tkinter simulator used in this repository.
+
+### Windows
 
 1. Install Python 3.10 or newer from [python.org](https://www.python.org/downloads/).
 2. Download this repository from GitHub or clone it with git.
@@ -27,26 +30,85 @@ After the first setup, reopen the app from the same folder with:
 python app.py
 ```
 
-## Abstract
+### macOS and Linux
 
-The simulator implements voltage-dependent sodium, potassium, and leak currents
-using the classical Hodgkin-Huxley conductance-based framework. Users can adjust
-ionic conductances, reversal potentials, membrane capacitance, current-injection
-settings, simulation duration, time step, and numerical integration method. The
-main scientific question was whether a simple Python implementation could
-reproduce the firing behavior of an equivalent single-compartment
-Hodgkin-Huxley model in NEURON.
+1. Install Python 3.10 or newer.
+2. Download this repository from GitHub or clone it with git.
+3. Open a terminal in the `Hodgkin-Huxley-Simulator` folder.
+4. Run:
 
-Validation was performed across injected current amplitudes from 0 to
-200 uA/cm2. The Python simulator and NEURON reference model matched exactly in
-spike count, firing rate, threshold current, and the overall frequency-current
-relationship. Both models began firing at 3 uA/cm2, reached a maximum firing
-rate of 133.33 Hz at 60 uA/cm2, and showed reduced repetitive firing at higher
-current amplitudes consistent with depolarization block. Voltage-level
-differences were small: the mean absolute peak-voltage difference was
-approximately 0.171 mV, the mean absolute trough-voltage difference was
-approximately 0.044 mV, and the mean absolute first-spike latency difference was
-approximately 0.003 ms.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python app.py
+```
+
+After the first setup, reopen the app from the same folder with:
+
+```bash
+source .venv/bin/activate
+python app.py
+```
+
+## What the Simulator Does
+
+The app runs a classical Hodgkin-Huxley model for one isopotential membrane
+compartment. It lets users change the biophysical parameters and injected
+current protocol, then immediately rerun the model and inspect the resulting
+voltage trace.
+
+The simulator is designed for learning and exploration. It makes it easy to see
+how sodium conductance, potassium conductance, leak conductance, reversal
+potentials, membrane capacitance, current amplitude, stimulus timing, time step,
+and integration method affect action-potential behavior.
+
+## App Controls
+
+The desktop interface includes controls for:
+
+- Simulation duration, time step, initial voltage, and integration method
+- Step-current amplitude, start time, end time, and baseline current
+- Sodium, potassium, and leak conductance densities
+- Sodium, potassium, and leak reversal potentials
+- Membrane capacitance
+
+The app supports both fourth-order Runge-Kutta (`rk4`) and Euler integration.
+RK4 is the default method.
+
+## Displayed Outputs
+
+Each run displays:
+
+- Membrane voltage over time
+- Injected current over time
+- Sodium and potassium reversal-potential reference lines
+- Spike count
+- Firing rate
+- Peak voltage
+- Trough voltage
+- First spike time
+
+The current simulation can also be exported as a CSV file, and the plot can be
+saved as an image or PDF.
+
+## Repository Layout
+
+```text
+app.py                         Desktop simulator interface
+src/models/hodgkin_huxley.py   Hodgkin-Huxley equations and state derivatives
+src/simulation/                Time stepping, protocols, and simulation config
+src/analysis/                  Spike detection and trace summary metrics
+src/utils/                     CSV export helpers
+tests/                         Unit tests for model and simulation behavior
+experiments/                   Optional scripted simulation examples
+neuron_validation/             Optional NEURON comparison utilities
+rstudio/                       Optional plotting scripts for validation outputs
+```
+
+The NEURON validation utilities are included as supporting material, but the
+main purpose of this repository is the interactive Hodgkin-Huxley simulator.
 
 ## Equations Used in the Simulator
 
