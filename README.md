@@ -4,6 +4,16 @@ An interactive Python desktop app for exploring single-compartment
 Hodgkin-Huxley membrane dynamics, current injection, spike generation, and
 basic action-potential metrics.
 
+## Download the Latest Version
+
+Use the current `main` branch if you want the newest simulator code without
+cloning the repository:
+
+- [Download the latest ZIP](https://github.com/nej296/Hodgkin-Huxley-Simulator/archive/refs/heads/main.zip)
+- [Open the repository on GitHub](https://github.com/nej296/Hodgkin-Huxley-Simulator)
+
+The ZIP link always points to the latest commit on `main`.
+
 ## Quick Start: Open the Desktop App
 
 These steps run the same Python/Tkinter simulator used in this repository.
@@ -11,7 +21,7 @@ These steps run the same Python/Tkinter simulator used in this repository.
 ### Windows
 
 1. Install Python 3.10 or newer from [python.org](https://www.python.org/downloads/).
-2. Download this repository from GitHub or clone it with git.
+2. Download this repository from GitHub, use the ZIP link above, or clone it with git.
 3. Open PowerShell in the `Hodgkin-Huxley-Simulator` folder.
 4. Run:
 
@@ -61,21 +71,21 @@ voltage trace.
 
 The simulator is designed for learning and exploration. It makes it easy to see
 how sodium conductance, potassium conductance, leak conductance, reversal
-potentials, membrane capacitance, current amplitude, stimulus timing, time step,
-and integration method affect action-potential behavior.
+potentials, membrane capacitance, current amplitude, stimulus timing, and
+time-step settings affect action-potential behavior.
 
 ## App Controls
 
 The desktop interface includes controls for:
 
-- Simulation duration, time step, initial voltage, and integration method
-- Step-current amplitude, start time, end time, and baseline current
-- Sodium, potassium, and leak conductance densities
+- Simulation duration, resting voltage, initial voltage, and step controls
+- Step-current amplitude, start time, end time, baseline current, and additional pulses
+- Sodium and potassium maximum conductance settings, plus scheduled conductance changes
+- Leak conductance density
 - Sodium, potassium, and leak reversal potentials
 - Membrane capacitance
 
-The app supports both fourth-order Runge-Kutta (`rk4`) and Euler integration.
-RK4 is the default method.
+The app uses fixed-step fourth-order Runge-Kutta (`rk4`) integration.
 
 ## Displayed Outputs
 
@@ -83,11 +93,13 @@ Each run displays:
 
 - Membrane voltage over time
 - Injected current over time
+- Sodium conductance over time
+- Potassium conductance over time
 - Sodium and potassium reversal-potential reference lines
 - Spike count
 - Firing rate
-- Peak voltage
-- Trough voltage
+- Max voltage
+- Min voltage
 - First spike time
 
 The current simulation can also be exported as a CSV file, and the plot can be

@@ -20,7 +20,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a Hodgkin-Huxley neuron simulation.")
     parser.add_argument("--duration-ms", type=float, default=50.0)
     parser.add_argument("--dt-ms", type=float, default=0.01)
-    parser.add_argument("--method", choices=["rk4", "euler"], default="rk4")
     parser.add_argument("--current", type=float, default=10.0, help="Step current in uA/cm^2.")
     parser.add_argument("--start-ms", type=float, default=5.0)
     parser.add_argument("--end-ms", type=float, default=35.0)
@@ -37,7 +36,7 @@ def main() -> None:
     args = build_parser().parse_args()
     parameters = HodgkinHuxleyParameters(g_na=args.g_na, g_k=args.g_k)
     neuron = HodgkinHuxleyNeuron(parameters)
-    config = SimulationConfig(duration_ms=args.duration_ms, dt_ms=args.dt_ms, method=args.method)
+    config = SimulationConfig(duration_ms=args.duration_ms, dt_ms=args.dt_ms, method="rk4")
     current = StepCurrent(amplitude=args.current, start_ms=args.start_ms, end_ms=args.end_ms)
 
     result = simulate(neuron=neuron, config=config, current_protocol=current)

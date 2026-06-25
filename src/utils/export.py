@@ -28,6 +28,10 @@ def export_simulation_csv(result: SimulationResult, output_path: str | Path) -> 
                 "h",
                 "n",
                 "injected_current_uA_cm2",
+                "g_na_max_mS_cm2",
+                "g_k_max_mS_cm2",
+                "sodium_conductance_mS_cm2",
+                "potassium_conductance_mS_cm2",
             ]
         )
         writer.writerows(
@@ -38,6 +42,10 @@ def export_simulation_csv(result: SimulationResult, output_path: str | Path) -> 
                 result.h,
                 result.n,
                 result.injected_current_uA_cm2,
+                result.g_na_max_mS_cm2,
+                result.g_k_max_mS_cm2,
+                result.sodium_conductance_mS_cm2,
+                result.potassium_conductance_mS_cm2,
             )
         )
 

@@ -177,6 +177,9 @@ class HodgkinHuxleyNeuron:
         m: float,
         h: float,
         n: float,
+        g_na: float | None = None,
+        g_k: float | None = None,
+        g_l: float | None = None,
     ) -> dict[str, float]:
         """Compute sodium, potassium, and leak current densities.
 
@@ -186,15 +189,21 @@ class HodgkinHuxleyNeuron:
         """
 
         p = self.parameters
-        i_na = p.g_na * (m**3) * h * (voltage - p.e_na)
-        i_k = p.g_k * (n**4) * (voltage - p.e_k)
-        i_l = p.g_l * (voltage - p.e_l)
+        g_na_value = p.g_na if g_na is None else g_na
+        g_k_value = p.g_k if g_k is None else g_k
+        g_l_value = p.g_l if g_l is None else g_l
+        i_na = g_na_value * (m**3) * h * (voltage - p.e_na)
+        i_k = g_k_value * (n**4) * (voltage - p.e_k)
+        i_l = g_l_value * (voltage - p.e_l)
         return {"sodium": i_na, "potassium": i_k, "leak": i_l}
 
     def derivatives(
         self,
         state: HodgkinHuxleyState,
         injected_current: float,
+        g_na: float | None = None,
+        g_k: float | None = None,
+        g_l: float | None = None,
     ) -> HodgkinHuxleyDerivative:
         """Compute HH state derivatives for one time point.
 
@@ -204,7 +213,15 @@ class HodgkinHuxleyNeuron:
                 injected current depolarizes the membrane.
         """
 
-        currents = self.ionic_currents(state.voltage, state.m, state.h, state.n)
+        currents = self.ionic_currents(
+            state.voltage,
+            state.m,
+            state.h,
+            state.n,
+            g_na=g_na,
+            g_k=g_k,
+            g_l=g_l,
+        )
         total_ionic_current = currents["sodium"] + currents["potassium"] + currents["leak"]
         d_voltage = (
             injected_current - total_ionic_current
@@ -228,7 +245,14 @@ class HodgkinHuxleyNeuron:
             d_n=float(d_n),
         )
 
-    def derivatives_array(self, state_vector: np.ndarray, injected_current: float) -> np.ndarray:
+    def derivatives_array(
+        self,
+        state_vector: np.ndarray,
+        injected_current: float,
+        g_na: float | None = None,
+        g_k: float | None = None,
+        g_l: float | None = None,
+    ) -> np.ndarray:
         """Compute derivatives for an array state ordered as [V, m, h, n]."""
 
         state = HodgkinHuxleyState(
@@ -237,4 +261,10 @@ class HodgkinHuxleyNeuron:
             h=float(state_vector[2]),
             n=float(state_vector[3]),
         )
-        return self.derivatives(state, injected_current).as_array()
+        return self.derivatives(
+            state,
+            injected_current,
+            g_na=g_na,
+            g_k=g_k,
+            g_l=g_l,
+        ).as_array()

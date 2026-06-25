@@ -12,12 +12,16 @@ class SimulationConfig:
     Attributes:
         duration_ms: Total simulated time in milliseconds.
         dt_ms: Fixed integration time step in milliseconds.
-        method: Explicit integration method, either "rk4" or "euler".
+        method: Explicit integration method. Only fourth-order Runge-Kutta is
+            supported in the app to avoid ambiguous method choices.
+        resting_voltage_mV: Voltage used to initialize gate steady states when
+            an explicit initial state is not supplied.
     """
 
     duration_ms: float = 50.0
     dt_ms: float = 0.01
     method: str = "rk4"
+    resting_voltage_mV: float = -65.0
 
     def __post_init__(self) -> None:
         """Validate simulation settings before running an experiment."""
@@ -28,5 +32,5 @@ class SimulationConfig:
             raise ValueError("dt_ms must be positive.")
         if self.dt_ms > self.duration_ms:
             raise ValueError("dt_ms must not exceed duration_ms.")
-        if self.method not in {"rk4", "euler"}:
-            raise ValueError("method must be either 'rk4' or 'euler'.")
+        if self.method != "rk4":
+            raise ValueError("method must be 'rk4'.")
