@@ -49,6 +49,22 @@ def test_current_step_evokes_action_potential() -> None:
         result.potassium_conductance_mS_cm2,
         result.g_k_max_mS_cm2 * (result.n**4),
     )
+    np.testing.assert_allclose(
+        result.sodium_current_uA_cm2,
+        result.sodium_conductance_mS_cm2 * (result.voltage_mV - neuron.parameters.e_na),
+    )
+    np.testing.assert_allclose(
+        result.potassium_current_uA_cm2,
+        result.potassium_conductance_mS_cm2 * (result.voltage_mV - neuron.parameters.e_k),
+    )
+    np.testing.assert_allclose(
+        result.leak_current_uA_cm2,
+        neuron.parameters.g_l * (result.voltage_mV - neuron.parameters.e_l),
+    )
+    np.testing.assert_allclose(
+        result.net_ionic_current_uA_cm2,
+        result.sodium_current_uA_cm2 + result.potassium_current_uA_cm2 + result.leak_current_uA_cm2,
+    )
 
 
 def test_step_current_protocol_window() -> None:

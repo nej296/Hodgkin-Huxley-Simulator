@@ -71,8 +71,8 @@ voltage trace.
 
 The simulator is designed for learning and exploration. It makes it easy to see
 how sodium conductance, potassium conductance, leak conductance, reversal
-potentials, membrane capacitance, current amplitude, stimulus timing, and
-time-step settings affect action-potential behavior.
+potentials, membrane capacitance, current amplitude, pulse timing, and scheduled
+conductance changes affect action-potential behavior.
 
 ## App Controls
 
@@ -80,30 +80,39 @@ The desktop interface includes controls for:
 
 - Simulation duration, resting voltage, initial voltage, and step controls
 - Step-current amplitude, start time, end time, baseline current, and additional pulses
-- Sodium and potassium maximum conductance settings, plus scheduled conductance changes
+- Sodium and potassium maximum conductance settings, plus scheduled conductance changes with start and end times
 - Leak conductance density
 - Sodium, potassium, and leak reversal potentials
 - Membrane capacitance
 
-The app uses fixed-step fourth-order Runge-Kutta (`rk4`) integration.
+The app uses fixed-step fourth-order Runge-Kutta (`rk4`) integration. Euler is
+not exposed in the app.
 
 ## Displayed Outputs
 
-Each run displays:
+The standard four-graph view displays:
 
 - Membrane voltage over time
 - Injected current over time
-- Sodium conductance over time
-- Potassium conductance over time
+- Sodium and potassium conductances on one graph, including scheduled maximum conductances
+- Net ionic current over time, computed from sodium, potassium, and leak components
 - Sodium and potassium reversal-potential reference lines
+
+The `Show Gating Variables` button switches to a two-graph view with voltage on
+top and gating variables `m`, `h`, and `n` below it.
+
+Trace metrics display:
+
 - Spike count
 - Firing rate
 - Max voltage
 - Min voltage
 - First spike time
 
-The current simulation can also be exported as a CSV file, and the plot can be
-saved as an image or PDF.
+The `Trace` button lets users click a plotted function and follow its x/y
+coordinates. The current simulation can also be exported as a CSV file. The full
+plot layout can be saved as an image or PDF, or each visible graph can be saved
+individually.
 
 ## Repository Layout
 
@@ -168,9 +177,14 @@ outward and hyperpolarizing.
 ### Ionic Currents
 
 ```text
-I_Na = g_Na m^3 h (V - E_Na)
-I_K  = g_K  n^4   (V - E_K)
-I_L  = g_L        (V - E_L)
+g_Na,actual(t) = g_Na,max(t) m^3 h
+g_K,actual(t)  = g_K,max(t)  n^4
+
+I_Na = g_Na,actual(t) (V - E_Na)
+I_K  = g_K,actual(t)  (V - E_K)
+I_L  = g_L            (V - E_L)
+
+I_net = I_Na + I_K + I_L
 ```
 
 ### Gating Variable Dynamics
@@ -210,10 +224,11 @@ Near `x = 0`, the simulator uses the Taylor approximation:
 vtrap(x, y) ~= y * (1 + x / (2y))
 ```
 
-### Initial Gate Values
+### Initial Voltage and Resting Voltage
 
-When an initial gate value is not manually supplied, gates are initialized at
-their steady-state values for the starting voltage:
+The app has both `Resting V` and `Initial V`.
+
+`Resting V` initializes the gate variables at steady state:
 
 ```text
 m_inf(V) = alpha_m(V) / (alpha_m(V) + beta_m(V))
@@ -221,13 +236,17 @@ h_inf(V) = alpha_h(V) / (alpha_h(V) + beta_h(V))
 n_inf(V) = alpha_n(V) / (alpha_n(V) + beta_n(V))
 ```
 
-The default initial voltage is:
+`Initial V` sets the actual membrane voltage at `t = 0`. This lets users start
+the membrane voltage away from the voltage used to initialize the gates.
+
+The defaults are:
 
 ```text
-V_0 = -65 mV
-m_0 = m_inf(V_0)
-h_0 = h_inf(V_0)
-n_0 = n_inf(V_0)
+V_rest = -65 mV
+V_0    = -65 mV
+m_0    = m_inf(V_rest)
+h_0    = h_inf(V_rest)
+n_0    = n_inf(V_rest)
 ```
 
 ### Injected Current Protocols
@@ -245,6 +264,32 @@ I_inj(t) = baseline + amplitude,  start_ms <= t <= end_ms
 I_inj(t) = baseline,              otherwise
 ```
 
+For multiple current pulses, the app adds every active pulse to the baseline:
+
+```text
+I_inj(t) = baseline + sum(active pulse amplitudes)
+```
+
+Pulses can overlap. If they overlap, their amplitudes add.
+
+### Scheduled Maximum Conductances
+
+Sodium and potassium maximum conductances can change during specified time
+windows:
+
+```text
+g_Na,max(t) = scheduled sodium maximum conductance
+g_K,max(t)  = scheduled potassium maximum conductance
+```
+
+Outside a scheduled interval, the conductance returns to its base maximum value.
+The displayed solid conductance traces are:
+
+```text
+g_Na,actual(t) = g_Na,max(t) m^3 h
+g_K,actual(t)  = g_K,max(t)  n^4
+```
+
 ### Time Grid
 
 The simulation uses a fixed time step:
@@ -255,25 +300,16 @@ t_k = k dt
 
 from `t = 0` through the configured simulation duration.
 
-### Euler Integration
-
-For state vector `y_k = [V_k, m_k, h_k, n_k]^T`, derivative function
-`f(y_k, I_k)`, and fixed step `dt`:
-
-```text
-y_{k+1} = y_k + dt * f(y_k, I_k)
-```
-
 ### Fourth-Order Runge-Kutta Integration
 
-RK4 is the default method. The injected current is held constant over each
-integration step:
+RK4 is the only integration method used by the app. The injected current and
+scheduled maximum conductances are held constant over each integration step:
 
 ```text
-k1 = f(y_k, I_k)
-k2 = f(y_k + 0.5 dt k1, I_k)
-k3 = f(y_k + 0.5 dt k2, I_k)
-k4 = f(y_k + dt k3, I_k)
+k1 = f(y_k, I_k, g_Na,max,k, g_K,max,k)
+k2 = f(y_k + 0.5 dt k1, I_k, g_Na,max,k, g_K,max,k)
+k3 = f(y_k + 0.5 dt k2, I_k, g_Na,max,k, g_K,max,k)
+k4 = f(y_k + dt k3, I_k, g_Na,max,k, g_K,max,k)
 
 y_{k+1} = y_k + (dt / 6) * (k1 + 2k2 + 2k3 + k4)
 ```
@@ -305,7 +341,7 @@ The displayed summary metrics are:
 ```text
 spike_count = number of accepted threshold crossings
 firing_rate_hz = spike_count / ((t_end - t_start) / 1000)
-peak_voltage_mV = max(V)
-trough_voltage_mV = min(V)
+max_voltage_mV = max(V)
+min_voltage_mV = min(V)
 first_spike_time_ms = time of the first accepted threshold crossing
 ```

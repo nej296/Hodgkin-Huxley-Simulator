@@ -25,6 +25,10 @@ class SimulationResult:
     g_k_max_mS_cm2: np.ndarray
     sodium_conductance_mS_cm2: np.ndarray
     potassium_conductance_mS_cm2: np.ndarray
+    sodium_current_uA_cm2: np.ndarray
+    potassium_current_uA_cm2: np.ndarray
+    leak_current_uA_cm2: np.ndarray
+    net_ionic_current_uA_cm2: np.ndarray
 
     @property
     def state_matrix(self) -> np.ndarray:
@@ -131,6 +135,10 @@ def simulate(
 
     sodium_conductance = g_na_max * (m**3) * h
     potassium_conductance = g_k_max * (n**4)
+    sodium_current = sodium_conductance * (voltage - neuron.parameters.e_na)
+    potassium_current = potassium_conductance * (voltage - neuron.parameters.e_k)
+    leak_current = neuron.parameters.g_l * (voltage - neuron.parameters.e_l)
+    net_ionic_current = sodium_current + potassium_current + leak_current
 
     return SimulationResult(
         time_ms=time_ms,
@@ -143,4 +151,8 @@ def simulate(
         g_k_max_mS_cm2=g_k_max,
         sodium_conductance_mS_cm2=sodium_conductance,
         potassium_conductance_mS_cm2=potassium_conductance,
+        sodium_current_uA_cm2=sodium_current,
+        potassium_current_uA_cm2=potassium_current,
+        leak_current_uA_cm2=leak_current,
+        net_ionic_current_uA_cm2=net_ionic_current,
     )
