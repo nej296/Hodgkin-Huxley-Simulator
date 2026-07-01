@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 import numpy as np
 
@@ -88,6 +89,7 @@ def simulate(
     initial_state: HodgkinHuxleyState | None = None,
     g_na_schedule: ConductanceSchedule | None = None,
     g_k_schedule: ConductanceSchedule | None = None,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> SimulationResult:
     """Run a fixed-step Hodgkin-Huxley simulation.
 
@@ -121,6 +123,10 @@ def simulate(
     state_vector = np.array([state.voltage, state.m, state.h, state.n], dtype=float)
     voltage[0], m[0], h[0], n[0] = state_vector
 
+    total_steps = len(time_ms) - 1
+    report_interval = max(1, total_steps // 50)
+    if progress_callback is not None:
+        progress_callback(0.0)
     for index in range(1, len(time_ms)):
         state_vector = _rk4_step(
             neuron=neuron,
@@ -132,6 +138,8 @@ def simulate(
         )
         state_vector = _clip_gate_probabilities(state_vector)
         voltage[index], m[index], h[index], n[index] = state_vector
+        if progress_callback is not None and (index % report_interval == 0 or index == total_steps):
+            progress_callback(index / total_steps)
 
     sodium_conductance = g_na_max * (m**3) * h
     potassium_conductance = g_k_max * (n**4)
