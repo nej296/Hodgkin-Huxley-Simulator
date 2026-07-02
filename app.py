@@ -2062,6 +2062,10 @@ class HodgkinHuxleySimulatorApp:
         draw_map[kind](temp_state)
         if kind == "gating":
             self._apply_gating_visibility(temp_state)
+        # Saved figures omit the legend/key (kept only on the interactive graphs).
+        legend = axis.get_legend()
+        if legend is not None:
+            legend.remove()
         figure.tight_layout()
         figure.savefig(path, dpi=200, bbox_inches="tight")
 
