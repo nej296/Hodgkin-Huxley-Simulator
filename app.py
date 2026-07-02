@@ -35,7 +35,7 @@ CONTROL_CONTENT_WIDTH = 330
 FULL_BUTTON_WIDTH = 54
 HALF_BUTTON_WIDTH = 25
 
-SNAP_THRESHOLD_PX = 24
+SNAP_THRESHOLD_PX = 32
 
 GRAPH_ORDER: tuple[str, ...] = (
     "voltage",
@@ -317,6 +317,8 @@ class HodgkinHuxleySimulatorApp:
 
     def _show_graphs_menu(self) -> None:
         menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="Display all graphs (stacked)", command=self.display_all_graphs)
+        menu.add_separator()
         for kind in GRAPH_ORDER:
             menu.add_command(
                 label=GRAPH_LABELS[kind],
@@ -325,6 +327,55 @@ class HodgkinHuxleySimulatorApp:
         x = self._graphs_button.winfo_rootx()
         y = self._graphs_button.winfo_rooty() + self._graphs_button.winfo_height()
         menu.tk_popup(x, y)
+
+    def display_all_graphs(self) -> None:
+        """Open all five graphs and stack them flush in a single vertical column.
+
+        Windows are placed by measuring the actual title-bar/border offset at
+        runtime, so the stack is flush regardless of the platform's window
+        decoration size.
+        """
+
+        for kind in GRAPH_ORDER:
+            self.open_graph_window(kind)
+        windows = [
+            self._graph_windows[k]["window"]
+            for k in GRAPH_ORDER
+            if k in self._graph_windows
+        ]
+        if not windows:
+            return
+        self.root.update_idletasks()
+
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        margin_x, margin_top, taskbar_reserve = 6, 6, 60
+        width = min(1200, screen_w - margin_x * 2)
+        column_height = screen_h - margin_top - taskbar_reserve
+
+        # Measure the window decoration (title bar + border) from the first window.
+        # winfo_y is the outer-frame top and wm geometry's position sets that same
+        # top, so placing at the running outer-top stacks the frames flush.
+        first = windows[0]
+        first.geometry(f"{width}x200+{margin_x}+{margin_top}")
+        self.root.update_idletasks()
+        title_bar = max(0, first.winfo_rooty() - first.winfo_y())
+        side_border = max(0, first.winfo_rootx() - first.winfo_x())
+        frame_extra = title_bar + side_border  # decoration height (top bar + bottom border)
+
+        count = len(windows)
+        outer_step = column_height // count
+        client_height = max(90, outer_step - frame_extra)
+
+        y = margin_top
+        for window in windows:
+            window.geometry(f"{width}x{client_height}+{margin_x}+{y}")
+            # Apply each move before computing the next one -- without a refresh
+            # between placements the window manager keeps its own cascade position
+            # and only the size sticks.
+            self.root.update_idletasks()
+            window.lift()
+            y += client_height + frame_extra
 
     def _on_hub_close(self) -> None:
         if self._any_child_open():
@@ -1032,93 +1083,78 @@ class HodgkinHuxleySimulatorApp:
 
         window = tk.Toplevel(self.root)
         window.title(GRAPH_LABELS[kind])
-        window.geometry("460x300")
-        window.minsize(300, 140)
+        # Default to a wide, short strip so the five graphs stack neatly on top of
+        # one another (each stretched to the right) and the whole column fits on
+        # screen. Height can be squeezed further; width stays comfortable.
+        window.geometry("880x170")
+        window.minsize(340, 110)
         window.protocol("WM_DELETE_WINDOW", lambda k=kind: self._on_graph_close(k))
 
-        figure = Figure(figsize=(4.2, 2.7), dpi=100)
+        figure = Figure(figsize=(7.6, 1.55), dpi=100)
         axis = figure.add_subplot(111)
         canvas = FigureCanvasTkAgg(figure, master=window)
         canvas.get_tk_widget().pack(side="top", fill="both", expand=True)
 
-        toolbar_frame = ttk.Frame(window)
-        toolbar_frame.pack(side="bottom", fill="x")
-
-        pan_icon = self._create_pan_icon()
-        zoom_icon = self._create_zoom_icon()
-        pan_button = tk.Button(
-            toolbar_frame,
-            image=pan_icon,
-            relief="raised",
-            bd=1,
-            padx=4,
-            pady=4,
-            highlightthickness=0,
-            takefocus=0,
-            command=lambda k=kind: self._graph_toggle_mode(k, "pan"),
-        )
-        pan_button.pack(side="left", padx=(4, 2), pady=2)
-        zoom_button = tk.Button(
-            toolbar_frame,
-            image=zoom_icon,
-            relief="raised",
-            bd=1,
-            padx=4,
-            pady=4,
-            highlightthickness=0,
-            takefocus=0,
-            command=lambda k=kind: self._graph_toggle_mode(k, "zoom"),
-        )
-        zoom_button.pack(side="left", padx=2, pady=2)
-        trace_button = tk.Button(
-            toolbar_frame,
-            text="Trace",
-            relief="raised",
-            bd=1,
-            width=6,
-            padx=6,
-            pady=2,
-            highlightthickness=0,
-            takefocus=0,
-            command=lambda k=kind: self._graph_toggle_mode(k, "trace"),
-        )
-        trace_button.pack(side="left", padx=2, pady=2)
-        reset_button = tk.Button(
-            toolbar_frame,
-            text="Reset",
-            relief="raised",
-            bd=1,
-            width=6,
-            padx=6,
-            pady=2,
-            highlightthickness=0,
-            takefocus=0,
-            command=lambda k=kind: self._reset_graph_view(k),
-        )
-        reset_button.pack(side="left", padx=2, pady=2)
-        coord_label = ttk.Label(toolbar_frame, text="", font=("Segoe UI", 9))
-        coord_label.pack(side="left", padx=(8, 4))
-
         state: dict = {
             "window": window,
+            "kind": kind,
             "figure": figure,
             "canvas": canvas,
             "axis": axis,
-            "pan_icon": pan_icon,
-            "zoom_icon": zoom_icon,
-            "pan_button": pan_button,
-            "zoom_button": zoom_button,
-            "trace_button": trace_button,
-            "coord_label": coord_label,
             "mode": None,
             "pan_drag_state": None,
             "trace_annotation": None,
             "trace_locked_line": None,
         }
 
-        canvas.mpl_connect("button_press_event", lambda e, k=kind: self._on_graph_press(k, e))
-        canvas.mpl_connect("motion_notify_event", lambda e, k=kind: self._on_graph_motion(k, e))
-        canvas.mpl_connect("button_release_event", lambda e, k=kind: self._on_graph_release(k, e))
+        # The interaction toolbar (crosshair pan, magnifying-glass zoom, Trace,
+        # Reset) and the live coordinate readout live only on the Voltage graph.
+        # Because every graph shares the same time axis, zooming/panning/resetting
+        # the Voltage graph drives the time window of all the other open graphs.
+        if kind == "voltage":
+            toolbar_frame = ttk.Frame(window)
+            toolbar_frame.pack(side="bottom", fill="x")
+            pan_icon = self._create_pan_icon()
+            zoom_icon = self._create_zoom_icon()
+            pan_button = tk.Button(
+                toolbar_frame, image=pan_icon, relief="raised", bd=1, padx=4, pady=4,
+                highlightthickness=0, takefocus=0,
+                command=lambda k=kind: self._graph_toggle_mode(k, "pan"),
+            )
+            pan_button.pack(side="left", padx=(4, 2), pady=2)
+            zoom_button = tk.Button(
+                toolbar_frame, image=zoom_icon, relief="raised", bd=1, padx=4, pady=4,
+                highlightthickness=0, takefocus=0,
+                command=lambda k=kind: self._graph_toggle_mode(k, "zoom"),
+            )
+            zoom_button.pack(side="left", padx=2, pady=2)
+            trace_button = tk.Button(
+                toolbar_frame, text="Trace", relief="raised", bd=1, width=6, padx=6, pady=2,
+                highlightthickness=0, takefocus=0,
+                command=lambda k=kind: self._graph_toggle_mode(k, "trace"),
+            )
+            trace_button.pack(side="left", padx=2, pady=2)
+            reset_button = tk.Button(
+                toolbar_frame, text="Reset", relief="raised", bd=1, width=6, padx=6, pady=2,
+                highlightthickness=0, takefocus=0,
+                command=lambda k=kind: self._reset_graph_view(k),
+            )
+            reset_button.pack(side="left", padx=2, pady=2)
+            coord_label = ttk.Label(toolbar_frame, text="", font=("Segoe UI", 9))
+            coord_label.pack(side="left", padx=(8, 4))
+            state.update(
+                {
+                    "pan_icon": pan_icon,
+                    "zoom_icon": zoom_icon,
+                    "pan_button": pan_button,
+                    "zoom_button": zoom_button,
+                    "trace_button": trace_button,
+                    "coord_label": coord_label,
+                }
+            )
+            canvas.mpl_connect("button_press_event", lambda e, k=kind: self._on_graph_press(k, e))
+            canvas.mpl_connect("motion_notify_event", lambda e, k=kind: self._on_graph_motion(k, e))
+            canvas.mpl_connect("button_release_event", lambda e, k=kind: self._on_graph_release(k, e))
 
         def _on_resize(_event: tk.Event, k: str = kind) -> None:
             active = self._graph_windows.get(k)
@@ -1150,7 +1186,7 @@ class HodgkinHuxleySimulatorApp:
                     w.after_cancel(pending)
                 except tk.TclError:
                     pass
-            active["_snap_after"] = w.after(140, lambda: self._maybe_snap_window(k))
+            active["_snap_after"] = w.after(100, lambda: self._maybe_snap_window(k))
 
         window.bind("<Configure>", _on_window_configure)
 
@@ -1190,17 +1226,23 @@ class HodgkinHuxleySimulatorApp:
         self._refresh_save_targets()
 
     def _apply_graph_layout(self, figure) -> None:
-        """Scale the axes proportionally so the plot shrinks/grows with the window.
+        """Reserve a constant pixel margin for the title and axis labels.
 
-        Fixed fractional margins are used instead of tight_layout: tight_layout
-        reserves fixed absolute space for tick labels and titles, so on a small
-        window those margins swallow the whole figure and the axes collapse to
-        zero (the graph appears to vanish). Fractional margins keep the plot a
-        constant fraction of the figure at any size.
+        Margins are computed in pixels (not fractions) so the graph title, x-axis
+        title, and tick labels stay fully visible even when the window is a very
+        short strip stacked with four others. The plot area fills whatever space
+        is left, so it still grows/shrinks with the window.
         """
 
         try:
-            figure.subplots_adjust(left=0.16, right=0.95, top=0.88, bottom=0.17)
+            width_px = max(figure.get_size_inches()[0] * figure.dpi, 1.0)
+            height_px = max(figure.get_size_inches()[1] * figure.dpi, 1.0)
+            left = 62.0 / width_px
+            right = 1.0 - 14.0 / width_px
+            top = 1.0 - 26.0 / height_px      # room for the title
+            bottom = 42.0 / height_px          # room for x tick labels + x title
+            if right > left and top > bottom:
+                figure.subplots_adjust(left=left, right=right, top=top, bottom=bottom)
         except Exception:  # noqa: BLE001
             pass
 
@@ -1257,12 +1299,18 @@ class HodgkinHuxleySimulatorApp:
         self._update_graph_mode_buttons(state)
 
     def _update_graph_mode_buttons(self, state: dict) -> None:
-        """Reflect the active mode with sunken/raised toolbar buttons."""
+        """Reflect the active mode with sunken/raised toolbar buttons.
+
+        Only the Voltage graph has pan/trace buttons, so guard for their absence.
+        """
 
         mode = state.get("mode")
-        state["pan_button"].configure(relief="sunken" if mode == "pan" else "raised")
-        state["zoom_button"].configure(relief="sunken" if mode == "zoom" else "raised")
-        state["trace_button"].configure(relief="sunken" if mode == "trace" else "raised")
+        if state.get("pan_button") is not None:
+            state["pan_button"].configure(relief="sunken" if mode == "pan" else "raised")
+        if state.get("zoom_button") is not None:
+            state["zoom_button"].configure(relief="sunken" if mode == "zoom" else "raised")
+        if state.get("trace_button") is not None:
+            state["trace_button"].configure(relief="sunken" if mode == "trace" else "raised")
 
     def _reset_graph_view(self, kind: str) -> None:
         """Return a graph window to its full, unzoomed view and clear modes."""
@@ -1276,7 +1324,9 @@ class HodgkinHuxleySimulatorApp:
         self._graph_hide_trace(state, draw=False)
         state["trace_annotation"] = None
         self._update_graph_mode_buttons(state)
-        self._draw_graph(kind)
+        # Reset every open graph to its full view (they share the time axis).
+        for other_kind in list(self._graph_windows.keys()):
+            self._draw_graph(other_kind)
 
     def _on_graph_press(self, kind: str, event) -> None:
         """Handle a click for pan, zoom, or trace on a graph window."""
@@ -1324,6 +1374,9 @@ class HodgkinHuxleySimulatorApp:
                 self._graph_zoom_to_click(state, float(event.xdata), float(event.ydata), 0.5)
             elif event.button == 3:
                 self._graph_zoom_to_click(state, float(event.xdata), float(event.ydata), 2.0)
+            else:
+                return
+            self._sync_graphs_to(kind)
 
     def _on_graph_motion(self, kind: str, event) -> None:
         """Update the coordinate readout and any active pan/trace interaction."""
@@ -1353,8 +1406,55 @@ class HodgkinHuxleySimulatorApp:
         """Clear the pan drag state once the mouse button is released."""
 
         state = self._graph_windows.get(kind)
-        if state is not None:
-            state["pan_drag_state"] = None
+        if state is None:
+            return
+        was_panning = state.get("pan_drag_state") is not None
+        state["pan_drag_state"] = None
+        if was_panning:
+            # Apply the panned time window to every other open graph.
+            self._sync_graphs_to(kind)
+
+    def _sync_graphs_to(self, source_kind: str) -> None:
+        """Apply the source graph's x (time) range to all other open graphs.
+
+        Every graph shares the time axis, so zooming/panning the Voltage graph
+        should reframe the whole stack. Each other graph autoscales its y to the
+        data now visible in that time window.
+        """
+
+        source = self._graph_windows.get(source_kind)
+        if source is None:
+            return
+        x0, x1 = source["axis"].get_xlim()
+        for other_kind, other in self._graph_windows.items():
+            if other_kind == source_kind:
+                continue
+            axis = other["axis"]
+            axis.set_xlim(x0, x1)
+            self._autoscale_y_to_xrange(axis, x0, x1)
+            other["canvas"].draw_idle()
+
+    @staticmethod
+    def _autoscale_y_to_xrange(axis, x0: float, x1: float) -> None:
+        """Rescale an axis's y limits to the visible data within [x0, x1]."""
+
+        low, high = (x0, x1) if x0 <= x1 else (x1, x0)
+        y_min, y_max = np.inf, -np.inf
+        for line in axis.lines:
+            if not line.get_visible():
+                continue
+            x_data = np.asarray(line.get_xdata(), dtype=float)
+            y_data = np.asarray(line.get_ydata(), dtype=float)
+            if x_data.size == 0:
+                continue
+            mask = (x_data >= low) & (x_data <= high)
+            if not mask.any():
+                continue
+            y_min = min(y_min, float(np.nanmin(y_data[mask])))
+            y_max = max(y_max, float(np.nanmax(y_data[mask])))
+        if np.isfinite(y_min) and np.isfinite(y_max) and y_max > y_min:
+            pad = 0.05 * (y_max - y_min)
+            axis.set_ylim(y_min - pad, y_max + pad)
 
     def _update_graph_coord_label(self, state: dict, event) -> None:
         """Show live cursor coordinates next to the Reset button on hover."""
@@ -1490,17 +1590,15 @@ class HodgkinHuxleySimulatorApp:
         window = state["window"]
         if not self._window_visible(window):
             return
-        try:
-            x = window.winfo_x()
-            y = window.winfo_y()
-            wd = window.winfo_width()
-            ht = window.winfo_height()
-        except tk.TclError:
+        metrics = self._window_frame_metrics(window)
+        if metrics is None:
             return
+        x, y, wd, outer_h = metrics
 
         # Vertical-only locking: a window snaps to another only when it is stacked
-        # directly above or below it (bottom-to-top / top-to-bottom edges). Windows
-        # placed to the left or right never snap. Snap to the nearest such edge.
+        # directly above or below it. Full window frames (title bar + borders) are
+        # snapped flush so there is no gap or overlap. Side-by-side windows barely
+        # overlap horizontally and are skipped.
         best_new_y: int | None = None
         best_gap = SNAP_THRESHOLD_PX
         for other_kind, other_state in self._graph_windows.items():
@@ -1509,26 +1607,23 @@ class HodgkinHuxleySimulatorApp:
             other = other_state["window"]
             if not self._window_visible(other):
                 continue
-            try:
-                ox = other.winfo_x()
-                oy = other.winfo_y()
-                owd = other.winfo_width()
-                oht = other.winfo_height()
-            except tk.TclError:
+            other_metrics = self._window_frame_metrics(other)
+            if other_metrics is None:
                 continue
+            ox, oy, owd, o_outer_h = other_metrics
 
-            # Require real horizontal overlap so only genuinely stacked windows
-            # snap; side-by-side windows barely overlap in x and are skipped.
             overlap = min(x + wd, ox + owd) - max(x, ox)
             if overlap < 0.3 * min(wd, owd):
                 continue
 
-            gap_below = abs((y + ht) - oy)  # this window's bottom to other's top
-            gap_above = abs(y - (oy + oht))  # this window's top to other's bottom
+            target_below = oy + o_outer_h  # this frame's top meets other's bottom
+            target_above = oy - outer_h  # this frame's bottom meets other's top
+            gap_below = abs(y - target_below)
+            gap_above = abs(y - target_above)
             if gap_below < best_gap:
-                best_gap, best_new_y = gap_below, oy - ht
+                best_gap, best_new_y = gap_below, target_below
             if gap_above < best_gap:
-                best_gap, best_new_y = gap_above, oy + oht
+                best_gap, best_new_y = gap_above, target_above
 
         if best_new_y is None or best_new_y == y:
             return
@@ -1538,6 +1633,27 @@ class HodgkinHuxleySimulatorApp:
         except tk.TclError:
             pass
         window.after(80, lambda s=state: s.__setitem__("_snapping", False))
+
+    @staticmethod
+    def _window_frame_metrics(window: tk.Toplevel):
+        """Return (x, y, width, outer_height) for a Toplevel including decorations.
+
+        winfo_y is the outer-frame top (matches wm geometry), while winfo_height
+        is only the client area, so the title bar and bottom border are added back
+        to get the true on-screen height. This lets windows stack flush.
+        """
+
+        try:
+            x = window.winfo_x()
+            y = window.winfo_y()
+            width = window.winfo_width()
+            client_h = window.winfo_height()
+            title_bar = max(0, window.winfo_rooty() - window.winfo_y())
+            side_border = max(0, window.winfo_rootx() - window.winfo_x())
+        except tk.TclError:
+            return None
+        outer_height = client_h + title_bar + side_border
+        return x, y, width, outer_height
 
     def _on_graph_close(self, kind: str) -> None:
         state = self._graph_windows.pop(kind, None)
@@ -1602,6 +1718,11 @@ class HodgkinHuxleySimulatorApp:
             "gating": self._draw_gating,
         }
         draw_map[kind](state)
+        # Compact title/label/tick fonts so everything fits in a short strip.
+        axis.title.set_fontsize(10)
+        axis.xaxis.label.set_size(9)
+        axis.yaxis.label.set_size(9)
+        axis.tick_params(labelsize=8)
         self._apply_graph_layout(state["figure"])
         state["canvas"].draw_idle()
 
@@ -1679,12 +1800,14 @@ class HodgkinHuxleySimulatorApp:
     def _draw_gating(self, state: dict) -> None:
         axis = state["axis"]
         lines: dict[str, object] = {}
+        # Gating traces are drawn a touch thinner than the other graphs' lines.
+        gating_linewidth = 1.1
         (lines["m"],) = axis.plot(self.result.time_ms, self.result.m,
-                                  color="red", linewidth=1.4, label="Na+ Open State")
+                                  color="red", linewidth=gating_linewidth, label="Na+ Open State")
         (lines["h"],) = axis.plot(self.result.time_ms, self.result.h,
-                                  color="green", linewidth=1.4, label="Na+ Inactivated State")
+                                  color="green", linewidth=gating_linewidth, label="Na+ Inactivated State")
         (lines["n"],) = axis.plot(self.result.time_ms, self.result.n,
-                                  color="blue", linewidth=1.4, label="K+ Open State")
+                                  color="blue", linewidth=gating_linewidth, label="K+ Open State")
         axis.set_xlabel("Time (ms)")
         axis.set_ylabel("Probability")
         axis.set_title("Ion Channel Functional States Probability")
