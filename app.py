@@ -10,8 +10,6 @@ from tkinter import filedialog, messagebox, ttk
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import proj3d  # noqa: F401  (registers the 3d projection)
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import numpy as np
 
 from src.analysis.spike_metrics import SpikeMetrics, summarize_voltage_trace
@@ -28,8 +26,6 @@ from src.simulation.protocols import (
     MultiPulseCurrent,
 )
 from src.simulation.runner import SimulationResult, simulate
-from src.simulation.cable import CableNeuron
-from src.morphology.swc import Morphology, load_swc
 from src.utils.export import export_simulation_csv
 
 
@@ -209,7 +205,6 @@ class HodgkinHuxleySimulatorApp:
         self._parameters_window: tk.Toplevel | None = None
         self._save_window: tk.Toplevel | None = None
         self._graph_windows: dict[str, dict] = {}
-        self._morphology_windows: list[dict] = []
         self._help_canvases: list[FigureCanvasTkAgg] = []
 
         # Ion channel isolate state (persists across window close/reopen).
@@ -248,12 +243,12 @@ class HodgkinHuxleySimulatorApp:
     # ------------------------------------------------------------------ hub
 
     def _build_hub(self) -> None:
-        self.root.geometry("620x220")
+        self.root.geometry("520x220")
         frame = ttk.Frame(self.root, padding=(20, 18, 20, 18))
         frame.grid(row=0, column=0, sticky="nsew")
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
-        for col in range(5):
+        for col in range(4):
             frame.columnconfigure(col, weight=1, uniform="hub")
 
         common = dict(
@@ -267,21 +262,18 @@ class HodgkinHuxleySimulatorApp:
             bg="#ffffff",
             activebackground="#f0f0f0",
         )
-        tk.Button(frame, text="File", command=self.open_swc_file, **common).grid(
-            row=0, column=0, sticky="ew", padx=4
-        )
         tk.Button(frame, text="Parameters", command=self.open_parameters_tab, **common).grid(
-            row=0, column=1, sticky="ew", padx=4
+            row=0, column=0, sticky="ew", padx=4
         )
         self._graphs_button = tk.Button(
             frame, text="Graphs ▾", command=self._show_graphs_menu, **common
         )
-        self._graphs_button.grid(row=0, column=2, sticky="ew", padx=4)
+        self._graphs_button.grid(row=0, column=1, sticky="ew", padx=4)
         tk.Button(frame, text="Save Plots", command=self.open_save_plots, **common).grid(
-            row=0, column=3, sticky="ew", padx=4
+            row=0, column=2, sticky="ew", padx=4
         )
         tk.Button(frame, text="Help", command=self.show_help, **common).grid(
-            row=0, column=4, sticky="ew", padx=4
+            row=0, column=3, sticky="ew", padx=4
         )
 
         ttk.Label(
@@ -289,10 +281,10 @@ class HodgkinHuxleySimulatorApp:
             text="Select a feature to open.",
             font=("Segoe UI", 10),
             foreground="#333333",
-        ).grid(row=1, column=0, columnspan=5, pady=(24, 0))
+        ).grid(row=1, column=0, columnspan=4, pady=(24, 0))
 
         status_row = ttk.Frame(frame)
-        status_row.grid(row=2, column=0, columnspan=5, sticky="ew", pady=(16, 0))
+        status_row.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(16, 0))
         status_row.columnconfigure(0, weight=1)
         status_row.columnconfigure(1, weight=0)
         status_row.columnconfigure(2, weight=0)
@@ -334,445 +326,6 @@ class HodgkinHuxleySimulatorApp:
         y = self._graphs_button.winfo_rooty() + self._graphs_button.winfo_height()
         menu.tk_popup(x, y)
 
-    # ----------------------------------------------- SWC morphology / cable
-
-    def open_swc_file(self) -> None:
-        """Prompt for an .swc morphology and open it as a cable model window."""
-
-        path = filedialog.askopenfilename(
-            title="Open SWC neuron morphology",
-            filetypes=[("SWC morphology", "*.swc"), ("All files", "*.*")],
-        )
-        if not path:
-            return
-        try:
-            morphology = load_swc(path)
-            cable = CableNeuron.from_morphology(morphology)
-        except Exception as error:  # noqa: BLE001
-            messagebox.showerror(
-                "Could not open SWC file",
-                f"'{Path(path).name}' could not be loaded as a morphology.\n\n{error}",
-            )
-            return
-        self._open_morphology_window(Path(path).name, morphology, cable)
-
-    def _open_morphology_window(
-        self, name: str, morphology: Morphology, cable: CableNeuron
-    ) -> None:
-        """Open a window that shows the morphology in 3D and runs the cable model."""
-
-        window = tk.Toplevel(self.root)
-        window.title(f"Morphology / Cable - {name}")
-        window.geometry("980x640")
-        window.minsize(680, 460)
-
-        controls = ttk.Frame(window, padding=(12, 12))
-        controls.pack(side="left", fill="y")
-
-        counts = ", ".join(f"{count} {label}" for label, count in morphology.type_counts().items())
-        ttk.Label(controls, text=name, font=("Segoe UI", 10, "bold")).pack(anchor="w")
-        ttk.Label(
-            controls,
-            text=f"{cable.n} compartments\n{counts}",
-            font=("Segoe UI", 9),
-            foreground="#555555",
-            justify="left",
-        ).pack(anchor="w", pady=(2, 12))
-
-        state: dict = {
-            "window": window,
-            "cable": cable,
-            "morphology": morphology,
-            "name": name,
-            "stim_index": 0,
-            "record_index": max(0, cable.n - 1),
-            "result": None,
-        }
-        self._morphology_windows.append(state)
-
-        def _labeled_entry(label: str, default: str) -> tk.StringVar:
-            row = ttk.Frame(controls)
-            row.pack(anchor="w", fill="x", pady=2)
-            ttk.Label(row, text=label, width=22).pack(side="left")
-            var = tk.StringVar(value=default)
-            ttk.Entry(row, textvariable=var, width=8).pack(side="left")
-            return var
-
-        stim_var = _labeled_entry("Stim compartment", "0")
-        record_var = _labeled_entry("Record compartment", str(state["record_index"]))
-        current_var = _labeled_entry("Stim current (nA)", "0.3")
-        duration_var = _labeled_entry("Duration (ms)", "20")
-        ra_var = _labeled_entry("Axial R_a (ohm*cm)", "100")
-        state.update({"stim_var": stim_var, "record_var": record_var})
-
-        ttk.Label(
-            controls,
-            text=(
-                "Right-drag to rotate in 3D.\n"
-                "Left-click a point to set the\n"
-                "stimulus site (orange).\n"
-                "Channel settings come from\n"
-                "the Parameters tab."
-            ),
-            font=("Segoe UI", 8),
-            foreground="#777777",
-            justify="left",
-        ).pack(anchor="w", pady=(8, 10))
-
-        run_button = ttk.Button(controls, text="Simulate cable", style="Run.TButton")
-        run_button.pack(anchor="w", fill="x", pady=(2, 4))
-        graphs_button = ttk.Button(controls, text="View compartment in Graphs")
-        graphs_button.pack(anchor="w", fill="x", pady=(0, 8))
-
-        status_var = tk.StringVar(value="Ready. Set a stimulus site and simulate.")
-        ttk.Label(
-            controls,
-            textvariable=status_var,
-            font=("Segoe UI", 9),
-            foreground="#444444",
-            wraplength=190,
-            justify="left",
-        ).pack(anchor="w")
-
-        figure = Figure(figsize=(6.4, 6.0), dpi=100)
-        morph_axis = figure.add_subplot(2, 1, 1, projection="3d")
-        heat_axis = figure.add_subplot(2, 1, 2)
-        # Rotate with the right mouse button so left-click stays free for picking.
-        try:
-            morph_axis.mouse_init(rotate_btn=3, zoom_btn=2)
-        except TypeError:  # pragma: no cover - older matplotlib signature
-            morph_axis.mouse_init()
-        canvas = FigureCanvasTkAgg(figure, master=window)
-        canvas.get_tk_widget().pack(side="right", fill="both", expand=True)
-        state.update(
-            {
-                "figure": figure,
-                "morph_axis": morph_axis,
-                "heat_axis": heat_axis,
-                "canvas": canvas,
-                "status_var": status_var,
-            }
-        )
-
-        self._draw_morphology(state)
-        self._draw_cable_heatmap(state)
-        try:
-            figure.tight_layout()
-        except Exception:  # noqa: BLE001
-            pass
-        canvas.draw_idle()
-
-        def _on_click(event, s=state) -> None:
-            if event.button != 1 or event.inaxes is not s["morph_axis"]:
-                return
-            if event.x is None or event.y is None:
-                return
-            index = self._nearest_morphology_node(s, event.x, event.y)
-            if index is None:
-                return
-            s["stim_index"] = index
-            s["stim_var"].set(str(index))
-            self._draw_morphology(s)
-            s["canvas"].draw_idle()
-
-        canvas.mpl_connect("button_press_event", _on_click)
-        run_button.configure(
-            command=lambda s=state: self._simulate_cable(
-                s, stim_var, current_var, duration_var, ra_var
-            )
-        )
-        graphs_button.configure(
-            command=lambda s=state: self._cable_compartment_to_graphs(s, record_var)
-        )
-
-        def _on_close(s=state) -> None:
-            if s in self._morphology_windows:
-                self._morphology_windows.remove(s)
-            s["window"].destroy()
-
-        window.protocol("WM_DELETE_WINDOW", _on_close)
-
-    @staticmethod
-    def _morphology_node_coords(morphology: Morphology):
-        """Return (xs, ys, zs) arrays of the morphology's sample coordinates."""
-
-        nodes = morphology.nodes
-        xs = np.array([node.x for node in nodes], dtype=float)
-        ys = np.array([node.y for node in nodes], dtype=float)
-        zs = np.array([node.z for node in nodes], dtype=float)
-        return xs, ys, zs
-
-    def _nearest_morphology_node(self, state: dict, px: float, py: float) -> int | None:
-        """Return the compartment index nearest to a click, using the 3D view."""
-
-        axis = state["morph_axis"]
-        xs, ys, zs = self._morphology_node_coords(state["morphology"])
-        try:
-            xp, yp, _ = proj3d.proj_transform(xs, ys, zs, axis.get_proj())
-            display = axis.transData.transform(np.column_stack([xp, yp]))
-        except Exception:  # noqa: BLE001
-            return None
-        distances = (display[:, 0] - px) ** 2 + (display[:, 1] - py) ** 2
-        return int(np.argmin(distances))
-
-    def _draw_morphology(self, state: dict) -> None:
-        """Draw the morphology as a rotatable 3D skeleton with site markers."""
-
-        axis = state["morph_axis"]
-        axis.clear()
-        morphology = state["morphology"]
-        node_by_id = morphology.node_by_id
-        type_colors = {1: "#111111", 2: "#c0392b", 3: "#2c6fbb", 4: "#8e44ad"}
-
-        segments = []
-        colors = []
-        for node in morphology.nodes:
-            if node.parent == -1:
-                continue
-            parent = node_by_id[node.parent]
-            segments.append(
-                [(parent.x, parent.y, parent.z), (node.x, node.y, node.z)]
-            )
-            colors.append(type_colors.get(node.type, "#555555"))
-        if segments:
-            axis.add_collection3d(Line3DCollection(segments, colors=colors, linewidths=1.0))
-
-        stim_node = morphology.nodes[state["stim_index"]]
-        axis.scatter(
-            [stim_node.x], [stim_node.y], [stim_node.z],
-            color="#e67e22", s=70, edgecolors="black", depthshade=False, label="stimulus",
-        )
-        record_index = state.get("record_index")
-        if record_index is not None and 0 <= record_index < len(morphology.nodes):
-            rec_node = morphology.nodes[record_index]
-            axis.scatter(
-                [rec_node.x], [rec_node.y], [rec_node.z],
-                color="#2c6fbb", s=45, edgecolors="black", depthshade=False, label="record",
-            )
-
-        self._style_morphology_axis(axis, morphology)
-
-    def _style_morphology_axis(self, axis, morphology: Morphology) -> None:
-        """Apply a clean, minimalist look and equal aspect to the 3D axis."""
-
-        xs, ys, zs = self._morphology_node_coords(morphology)
-        cx, cy, cz = xs.mean(), ys.mean(), zs.mean()
-        span = max(np.ptp(xs), np.ptp(ys), np.ptp(zs), 1.0) / 2.0
-        axis.set_xlim(cx - span, cx + span)
-        axis.set_ylim(cy - span, cy + span)
-        axis.set_zlim(cz - span, cz + span)
-        try:
-            axis.set_box_aspect((1, 1, 1))
-        except Exception:  # noqa: BLE001
-            pass
-        axis.set_xticks([])
-        axis.set_yticks([])
-        axis.set_zticks([])
-        axis.grid(False)
-        transparent = (1.0, 1.0, 1.0, 0.0)
-        for pane_axis in (axis.xaxis, axis.yaxis, axis.zaxis):
-            try:
-                pane_axis.set_pane_color(transparent)
-                pane_axis.line.set_color(transparent)
-            except Exception:  # noqa: BLE001
-                pass
-        axis.set_title("Morphology - right-drag to rotate, left-click to stimulate", fontsize=9)
-
-    def _draw_cable_heatmap(self, state: dict) -> None:
-        """Draw the space-time voltage map (empty until a simulation is run)."""
-
-        axis = state["heat_axis"]
-        axis.clear()
-        result = state.get("result")
-        if result is None:
-            axis.text(
-                0.5, 0.5, "Run 'Simulate cable' to see\nvoltage propagate over time",
-                ha="center", va="center", fontsize=9, color="#888888",
-                transform=axis.transAxes,
-            )
-            axis.set_xticks([])
-            axis.set_yticks([])
-            return
-        mesh = axis.imshow(
-            result.voltage_mV.T,
-            aspect="auto",
-            origin="lower",
-            extent=[result.time_ms[0], result.time_ms[-1], 0, state["cable"].n],
-            cmap="viridis",
-        )
-        axis.set_title("Membrane voltage along the cable", fontsize=9)
-        axis.set_xlabel("time (ms)", fontsize=8)
-        axis.set_ylabel("compartment", fontsize=8)
-        axis.tick_params(labelsize=7)
-        # Mark the stimulus and record compartments on the space axis.
-        axis.axhline(state["stim_index"] + 0.5, color="#e67e22", linewidth=1.0)
-        record_index = state.get("record_index")
-        if record_index is not None:
-            axis.axhline(record_index + 0.5, color="#2c6fbb", linewidth=1.0)
-        colorbar = state.get("_colorbar")
-        if colorbar is not None:
-            try:
-                colorbar.remove()
-            except Exception:  # noqa: BLE001
-                pass
-        state["_colorbar"] = state["figure"].colorbar(mesh, ax=axis, label="V (mV)")
-
-    def _simulate_cable(
-        self,
-        state: dict,
-        stim_var: tk.StringVar,
-        current_var: tk.StringVar,
-        duration_var: tk.StringVar,
-        ra_var: tk.StringVar,
-    ) -> None:
-        """Run the cable simulation using the app's current HH parameters."""
-
-        try:
-            stim_index = int(float(stim_var.get()))
-            current_nA = float(current_var.get())
-            duration_ms = float(duration_var.get())
-            axial_ra = float(ra_var.get())
-        except ValueError:
-            state["status_var"].set("Enter numeric stimulus, current, duration, and R_a.")
-            return
-        n = state["cable"].n
-        if not 0 <= stim_index < n:
-            state["status_var"].set(f"Stim compartment must be 0-{n - 1}.")
-            return
-        if duration_ms <= 0 or axial_ra <= 0:
-            state["status_var"].set("Duration and R_a must be positive.")
-            return
-
-        # Rebuild the cable with the Parameters-tab channel settings + this R_a so
-        # the cable stays in sync with the rest of the simulator.
-        params = self._current_hh_parameters()
-        try:
-            cable = CableNeuron.from_morphology(
-                state["morphology"], hh_parameters=params, axial_resistivity_ohm_cm=axial_ra
-            )
-        except Exception as error:  # noqa: BLE001
-            state["status_var"].set(f"Could not build cable: {error}")
-            return
-
-        state["cable"] = cable
-        state["hh_params"] = params
-        state["stim_index"] = stim_index
-        resting = self._read_float("resting_voltage_mV")
-        stim_end = min(2.0, duration_ms)
-        dt = cable.max_stable_dt_ms()
-        state["status_var"].set("Simulating cable...")
-        state["window"].update_idletasks()
-        try:
-            result = cable.simulate(
-                duration_ms=duration_ms,
-                dt_ms=dt,
-                resting_voltage_mV=resting,
-                stim_current_nA=current_nA,
-                stim_compartment=stim_index,
-                stim_start_ms=1.0,
-                stim_end_ms=stim_end,
-            )
-        except Exception as error:  # noqa: BLE001
-            state["status_var"].set(f"Simulation failed: {error}")
-            return
-
-        state["result"] = result
-        state["stim_current_nA"] = current_nA
-        state["stim_start_ms"] = 1.0
-        state["stim_end_ms"] = stim_end
-        peak = float(result.voltage_mV.max())
-        spiked = int(np.sum(result.voltage_mV.max(axis=0) >= 0.0))
-        gate_note = "" if result.has_gates else "\n(morphology too large to open in Graphs)"
-        state["status_var"].set(
-            f"Done. dt={dt:.4f} ms.\nPeak {peak:.1f} mV.\n"
-            f"{spiked}/{cable.n} compartments spiked.{gate_note}"
-        )
-        self._draw_morphology(state)
-        self._draw_cable_heatmap(state)
-        try:
-            state["figure"].tight_layout()
-        except Exception:  # noqa: BLE001
-            pass
-        state["canvas"].draw_idle()
-
-    def _cable_compartment_to_graphs(self, state: dict, record_var: tk.StringVar) -> None:
-        """Load one cable compartment's dynamics into the standard graph windows."""
-
-        result = state.get("result")
-        if result is None:
-            state["status_var"].set("Simulate the cable first.")
-            return
-        if not result.has_gates:
-            state["status_var"].set("This morphology is too large to open in Graphs.")
-            return
-        try:
-            index = int(float(record_var.get()))
-        except ValueError:
-            state["status_var"].set("Record compartment must be a number.")
-            return
-        n = state["cable"].n
-        if not 0 <= index < n:
-            state["status_var"].set(f"Record compartment must be 0-{n - 1}.")
-            return
-
-        state["record_index"] = index
-        params = state.get("hh_params") or self._current_hh_parameters()
-        time_ms = result.time_ms
-        voltage = result.voltage_mV[:, index].astype(float)
-        m = result.m[:, index].astype(float)
-        h = result.h[:, index].astype(float)
-        gate_n = result.n[:, index].astype(float)
-
-        # Injected current density seen by this compartment (nonzero only if it is
-        # the stimulated one), converted from the absolute nA point stimulus.
-        injected = np.zeros_like(time_ms)
-        if index == state["stim_index"]:
-            area = state["cable"].area_cm2[index]
-            density = (state.get("stim_current_nA", 0.0) * 1e-3) / area
-            window_mask = (time_ms >= state.get("stim_start_ms", 1.0)) & (
-                time_ms <= state.get("stim_end_ms", 2.0)
-            )
-            injected[window_mask] = density
-
-        sodium_conductance = params.g_na * (m**3) * h
-        potassium_conductance = params.g_k * (gate_n**4)
-        sodium_current = sodium_conductance * (voltage - params.e_na)
-        potassium_current = potassium_conductance * (voltage - params.e_k)
-        leak_current = params.g_l * (voltage - params.e_l)
-        net_ionic = sodium_current + potassium_current + leak_current
-
-        self.result = SimulationResult(
-            time_ms=time_ms,
-            voltage_mV=voltage,
-            m=m,
-            h=h,
-            n=gate_n,
-            injected_current_uA_cm2=injected,
-            g_na_max_mS_cm2=np.full_like(time_ms, params.g_na),
-            g_k_max_mS_cm2=np.full_like(time_ms, params.g_k),
-            sodium_conductance_mS_cm2=sodium_conductance,
-            potassium_conductance_mS_cm2=potassium_conductance,
-            sodium_current_uA_cm2=sodium_current,
-            potassium_current_uA_cm2=potassium_current,
-            leak_current_uA_cm2=leak_current,
-            net_ionic_current_uA_cm2=net_ionic,
-        )
-        self.current_parameters = params
-        self.metrics = summarize_voltage_trace(self.result)
-        self._visible_time_end_ms = None
-        self._update_metrics()
-        self._redraw_all_graphs()
-        self._apply_visible_time_end_to_graphs()
-        self._refresh_save_targets()
-        self.open_graph_window("voltage")
-        self._draw_morphology(state)
-        self._draw_cable_heatmap(state)
-        state["canvas"].draw_idle()
-        state["status_var"].set(
-            f"Compartment {index} ({state['name']}) loaded into Graphs and Trace Metrics.\n"
-            "Open other views from the Graphs menu."
-        )
-
     def _on_hub_close(self) -> None:
         if self._any_child_open():
             confirm = messagebox.askyesno(
@@ -792,9 +345,6 @@ class HodgkinHuxleySimulatorApp:
             if window is not None and self._window_visible(window):
                 return True
         for state in self._graph_windows.values():
-            if self._window_visible(state["window"]):
-                return True
-        for state in self._morphology_windows:
             if self._window_visible(state["window"]):
                 return True
         return False
@@ -1310,11 +860,7 @@ class HodgkinHuxleySimulatorApp:
         return tuple(changes)
 
     def _current_hh_parameters(self) -> HodgkinHuxleyParameters:
-        """Build HH membrane parameters from the current Parameters-tab values.
-
-        Shared by the single-compartment run and the cable model so the same
-        channel settings drive both.
-        """
+        """Build HH membrane parameters from the current Parameters-tab values."""
 
         return HodgkinHuxleyParameters(
             membrane_capacitance=self._read_float("membrane_capacitance"),
